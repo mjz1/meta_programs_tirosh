@@ -50,17 +50,6 @@ Proportion of genes that do not map
 sum(!meta_progs_fix$Approved) / nrow(meta_progs_fix)
 ```
 
-List all genes that have unapproved symbols
-
-```{r}
-meta_progs_fix %>%
-  filter(!Approved) %>%
-  select(Gene, Approved, Suggested.Symbol) %>%
-  distinct() %>%
-  arrange(Suggested.Symbol, Gene) %>%
-  gt::gt()
-```
-
 
 ```{r}
 #| include: false
@@ -101,6 +90,17 @@ Updated proportion of unpatched names:
 
 ```{r}
 sum(is.na(meta_progs_fix$Suggested.Symbol)) / nrow(meta_progs_fix)
+```
+
+List all genes that have unapproved symbols and their patched names
+
+```{r}
+meta_progs_fix %>%
+  filter(!Approved) %>%
+  select(Gene, Approved, Suggested.Symbol) %>%
+  distinct() %>%
+  arrange(Suggested.Symbol, Gene) %>%
+  gt::gt()
 ```
 
 Save out flat table
