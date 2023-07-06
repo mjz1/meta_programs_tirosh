@@ -1,0 +1,109 @@
+---
+title: "Fix MP Names"
+author: "Matthew Zatzman"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+    code-link: true
+    toc: true
+---
+
+
+```{r}
+library(tidyverse)
+library(HGNChelper)
+```
+
+The Tirosh metaprograms from https://www.nature.com/articles/s41586-023-06130-4 contain several unapproved HGNC names. Here we catalog and fix them.
+
+```{r}
+#| warning: false
+#| message: false
+meta_prog_file <- "~/work/references/meta_programs_tirosh/meta_programs.xlsx"
+
+meta_progs_fix <- map(excel_sheets(meta_prog_file), .f = function(sheet) {
+  df <- read_xlsx(path = meta_prog_file, sheet = sheet) %>%
+    janitor::clean_names() %>%
+    as.list()
+    
+  
+  res <- map(names(df), .f = function(x) {
+    fix <- HGNChelper::checkGeneSymbols(df[[x]])
+    fix$ct <- sheet
+    fix$mp <- x
+    colnames(fix)[1] <- "Gene"
+    fix$gene_rank <- 1:nrow(fix)
+    return(fix)
+  }) %>%
+    list_rbind()
+  return(res)
+}) %>%
+  list_rbind()
+```
+
+```{r}
+# Proportion of genes that do not map
+sum(!meta_progs_fix$Approved) / nrow(meta_progs_fix)
+```
+
+List all genes that have unapproved symbols
+
+```{r}
+meta_progs_fix %>%
+  filter(!Approved) %>%
+  select(Gene, Approved, Suggested.Symbol) %>%
+  distinct() %>%
+  DT::datatable()
+```
+
+Try patching with Seurat function (nothing gets patched)
+
+```{r}
+non_mapped <- filter(meta_progs_fix, is.na(Suggested.Symbol))$Gene %>% unique()
+
+seurat_try <- Seurat::UpdateSymbolList(non_mapped)
+```
+
+
+Write out table to manually patch where possible
+
+```{r}
+meta_progs_fix %>%
+  filter(!Approved) %>%
+  select(Gene, Approved, Suggested.Symbol) %>%
+  distinct() %>%
+  arrange(Suggested.Symbol, Gene) %>%
+  write.table("non_mapping_genes_unedited.txt", quote = F, sep = "\t", col.names = T, row.names = F)
+```
+
+Outside this script I manually select where there are multiple potential matches. One manual patch was in `ZFP385A` to `ZNF385A` Now reload and format
+
+```{r}
+patched_names <- read.table("non_mapping_genes_edited.txt", header = T, sep = "\t") %>%
+  filter(!is.na(Suggested.Symbol))
+
+# Patch in
+meta_progs_fix[match(patched_names$Gene, meta_progs_fix$Gene), "Suggested.Symbol"] <- patched_names$Suggested.Symbol
+
+# How well do we do
+sum(is.na(meta_progs_fix$Suggested.Symbol)) / nrow(meta_progs_fix)
+```
+
+Save out flat table
+
+```{r}
+meta_progs_fix %>%
+  dplyr::rename("original_symbol" = "Gene",
+         "Gene" = "Suggested.Symbol",
+         "cell_type" = "ct",
+         "meta_program" = "mp") %>%
+  relocate(Gene) %>%
+  write.table("tirosh_mp_patched.txt", quote = F, sep = "\t", row.names = F, col.names = T)
+  
+```
+
+
+
+
