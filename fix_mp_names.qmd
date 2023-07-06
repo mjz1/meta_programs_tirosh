@@ -2,17 +2,17 @@
 title: "Fix MP Names"
 author: "Matthew Zatzman"
 date: "`r Sys.Date()`"
-format: 
-  html:
-    code-fold: true
-    code-tools: true
-    code-link: true
-    toc: true
+format:
+  html: 
+    self-contained: true
 ---
 
 
 ```{r}
+#| warning: false
+#| message: false
 library(tidyverse)
+library(readxl)
 library(HGNChelper)
 ```
 
@@ -21,7 +21,7 @@ The Tirosh metaprograms from https://www.nature.com/articles/s41586-023-06130-4 
 ```{r}
 #| warning: false
 #| message: false
-meta_prog_file <- "~/work/references/meta_programs_tirosh/meta_programs.xlsx"
+meta_prog_file <- "meta_programs.xlsx"
 
 meta_progs_fix <- map(excel_sheets(meta_prog_file), .f = function(sheet) {
   df <- read_xlsx(path = meta_prog_file, sheet = sheet) %>%
@@ -43,8 +43,10 @@ meta_progs_fix <- map(excel_sheets(meta_prog_file), .f = function(sheet) {
   list_rbind()
 ```
 
+
+Proportion of genes that do not map
+
 ```{r}
-# Proportion of genes that do not map
 sum(!meta_progs_fix$Approved) / nrow(meta_progs_fix)
 ```
 
@@ -55,12 +57,15 @@ meta_progs_fix %>%
   filter(!Approved) %>%
   select(Gene, Approved, Suggested.Symbol) %>%
   distinct() %>%
-  DT::datatable()
+  arrange(Suggested.Symbol, Gene) %>%
+  gt::gt()
 ```
 
-Try patching with Seurat function (nothing gets patched)
 
 ```{r}
+#| include: false
+#| eval: false
+# Try patching with Seurat function (nothing gets patched)
 non_mapped <- filter(meta_progs_fix, is.na(Suggested.Symbol))$Gene %>% unique()
 
 seurat_try <- Seurat::UpdateSymbolList(non_mapped)
@@ -78,7 +83,8 @@ meta_progs_fix %>%
   write.table("non_mapping_genes_unedited.txt", quote = F, sep = "\t", col.names = T, row.names = F)
 ```
 
-Outside this script I manually select where there are multiple potential matches. One manual patch was in `ZFP385A` to `ZNF385A` Now reload and format
+Outside this script I manually select where there are multiple potential matches (seen as genes with /// in the `Suggested.Symbol` column). One additional manual patch was in `ZFP385A` to `ZNF385A` Now reload, format, and export the final table
+
 
 ```{r}
 patched_names <- read.table("non_mapping_genes_edited.txt", header = T, sep = "\t") %>%
@@ -86,8 +92,11 @@ patched_names <- read.table("non_mapping_genes_edited.txt", header = T, sep = "\
 
 # Patch in
 meta_progs_fix[match(patched_names$Gene, meta_progs_fix$Gene), "Suggested.Symbol"] <- patched_names$Suggested.Symbol
+```
 
-# How well do we do
+Updated proportion of unpatched names:
+
+```{r}
 sum(is.na(meta_progs_fix$Suggested.Symbol)) / nrow(meta_progs_fix)
 ```
 
