@@ -85,13 +85,16 @@ meta_progs_fix %>%
 
 Outside this script I manually select where there are multiple potential matches (seen as genes with /// in the `Suggested.Symbol` column). One additional manual patch was in `ZFP385A` to `ZNF385A` Now reload, format, and export the final table
 
-
 ```{r}
 patched_names <- read.table("non_mapping_genes_edited.txt", header = T, sep = "\t") %>%
-  filter(!is.na(Suggested.Symbol))
+  filter(!is.na(Suggested.Symbol)) %>%
+  dplyr::rename("Updated_Symbol" = "Suggested.Symbol")
 
 # Patch in
-meta_progs_fix[match(patched_names$Gene, meta_progs_fix$Gene), "Suggested.Symbol"] <- patched_names$Suggested.Symbol
+meta_progs_fix <- left_join(meta_progs_fix, patched_names, by = c("Gene", "Approved"))
+
+# Whenever updated is not NA we patch in
+meta_progs_fix[!is.na(meta_progs_fix$Updated_Symbol), "Suggested.Symbol"] <- meta_progs_fix[!is.na(meta_progs_fix$Updated_Symbol), "Updated_Symbol"]
 ```
 
 Updated proportion of unpatched names:
@@ -110,7 +113,6 @@ meta_progs_fix %>%
          "meta_program" = "mp") %>%
   relocate(Gene) %>%
   write.table("tirosh_mp_patched.txt", quote = F, sep = "\t", row.names = F, col.names = T)
-  
 ```
 
 
